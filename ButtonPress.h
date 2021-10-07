@@ -30,41 +30,34 @@ int *g_bitNumber;				// Pin number
 int *pressedConfidence;			// Counter for pressed confidence
 int *releasedConfidence;		// Counter for released confidence
 int confidenceLevels;			// Required confidence level
-volatile char *pressed;			//
+volatile char *pressed;	// Holds the pressed status of the initialized switches
 GPIO_Type *PTofBits;
 
 #define ENABLE_LCD_PORT_CLOCKS   	SIM->SCGC5 |= SIM_SCGC5_PORTA_MASK | SIM_SCGC5_PORTB_MASK | SIM_SCGC5_PORTC_MASK | SIM_SCGC5_PORTD_MASK | SIM_SCGC5_PORTE_MASK;
 #define GPIO_W_PULLUP 0x103
 
 /* Function prototypes */
-int initSW(PORT_Type *PRT, GPIO_Type *PT, int confidenceLevel, int numBits,
-		...);
+int initSW(PORT_Type *PRT, GPIO_Type *PT, int confidenceLevel, int numBits, ...);
 void readSW();
 void set_Timeout(int Timeout_ms);
 
-
-
 /* Initialize swicthes. */
-int initSW(PORT_Type *PRT, GPIO_Type *PT, int confidenceLevel, int bitNums,
-		...)
+int initSW(PORT_Type *PRT, GPIO_Type *PT, int confidenceLevel, int bitNums, ...)
 {
-
 
 	PTofBits = PT;
 	// Enable all clocks
 	ENABLE_LCD_PORT_CLOCKS
-
 
 	// Save number of buttons and required Confidencelevel for later
 	confidenceLevels = confidenceLevel;
 	numberOfButtons = bitNums;
 
 	/* Allocate memory for global variables */
-	g_bitNumber =(int*) malloc(bitNums * sizeof(int));
-	pressedConfidence =(int*) malloc(bitNums * sizeof(int));
-	releasedConfidence =(int*) malloc(bitNums * sizeof(int));
-	pressed =(char*) malloc(bitNums * sizeof(char));
-
+	g_bitNumber = (int*) malloc(bitNums * sizeof(int));
+	pressedConfidence = (int*) malloc(bitNums * sizeof(int));
+	releasedConfidence = (int*) malloc(bitNums * sizeof(int));
+	pressed = (char*) malloc(bitNums * sizeof(char));
 
 	// Create a new variable to hold the variable number of arguments
 	va_list v1;
