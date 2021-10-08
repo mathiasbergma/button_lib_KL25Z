@@ -25,13 +25,24 @@
 #include "fsl_debug_console.h"
 #include <stdarg.h>
 
+typedef enum
+{
+	noPress,
+	shortPress,
+	longPress,
+
+} duration_t;
+
 int numberOfButtons;
 int *g_bitNumber;				// Pin number
 int *pressedConfidence;			// Counter for pressed confidence
 int *releasedConfidence;		// Counter for released confidence
 int confidenceLevels;			// Required confidence level
 volatile char *pressed;	// Holds the pressed status of the initialized switches
+volatile duration_t *pressedDur;// Duration flag of the press
+volatile int *pressedTime;		// Press time counter
 GPIO_Type *PTofBits;
+
 
 #define ENABLE_LCD_PORT_CLOCKS   	SIM->SCGC5 |= SIM_SCGC5_PORTA_MASK | SIM_SCGC5_PORTB_MASK | SIM_SCGC5_PORTC_MASK | SIM_SCGC5_PORTD_MASK | SIM_SCGC5_PORTE_MASK;
 #define GPIO_W_PULLUP 0x103
@@ -39,6 +50,7 @@ GPIO_Type *PTofBits;
 /* Function prototypes */
 int initSW(PORT_Type *PRT, GPIO_Type *PT, int confidenceLevel, int numBits, ...);
 void readSW();
+void readSLSW();
 void set_Timeout(int Timeout_ms);
 
 /* Initialize swicthes. */
@@ -58,6 +70,8 @@ int initSW(PORT_Type *PRT, GPIO_Type *PT, int confidenceLevel, int bitNums, ...)
 	pressedConfidence = (int*) malloc(bitNums * sizeof(int));
 	releasedConfidence = (int*) malloc(bitNums * sizeof(int));
 	pressed = (char*) malloc(bitNums * sizeof(char));
+	pressedDur = (duration_t*) malloc(bitNums * sizeof(duration_t));
+	pressedTime = (int*) malloc(bitNums * sizeof(int));
 
 	// Create a new variable to hold the variable number of arguments
 	va_list v1;
@@ -100,12 +114,36 @@ void readSW()
 		if (pressedConfidence[i] > confidenceLevels)
 		{
 			pressed[i] = 1;
+			pressedDur[i] = noPress;
 		} else if (releasedConfidence[i] > confidenceLevels)
 		{
 			pressed[i] = 0;
 		}
 	}
-
+	readSLSW();
+	return;
+}
+void readSLSW()
+{
+	for (int i = 0; i < numberOfButtons; i++)
+	{
+		if (pressed[i])
+		{
+			pressedTime[i] ++;
+		}
+		else
+		{
+			if (pressedTime[i] < 1000)
+			{
+				pressedDur[i] = shortPress;
+			}
+			else
+			{
+				pressedDur[i] = longPress;
+			}
+			pressedTime[i] = 0;
+		}
+	}
 	return;
 }
 
