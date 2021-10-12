@@ -41,7 +41,7 @@ int confidenceLevels;			// Required confidence level
 volatile char *pressed;	// Holds the pressed status of the initialized switches
 volatile duration_t *pressedDur;// Duration flag of the press
 volatile int *pressedTime;		// Press time counter
-GPIO_Type *PTofBits;
+GPIO_Type *PTofBits;			// Holds the port information
 
 
 #define ENABLE_LCD_PORT_CLOCKS   	SIM->SCGC5 |= SIM_SCGC5_PORTA_MASK | SIM_SCGC5_PORTB_MASK | SIM_SCGC5_PORTC_MASK | SIM_SCGC5_PORTD_MASK | SIM_SCGC5_PORTE_MASK;
@@ -96,19 +96,26 @@ void readSW()
 {
 	unsigned portSwitchState = ~PTofBits->PDIR;	// Read value of port bits into portSwitchState
 
+	// For each switch
 	for (int i = 0; i < numberOfButtons; i++)
 	{
+		// If switch is pressed
 		if ((portSwitchState & (1UL << g_bitNumber[i])))
 		{
+			// Increment the pressed confidence
 			pressedConfidence[i]++;
+			// Switch is pressed - set released confidence to 0
 			releasedConfidence[i] = 0;
 		} else
 		{
+			// Switch is not pressed. Set pressed confidence to 0
+			// and increment released confidence
 			pressedConfidence[i] = 0;
 			releasedConfidence[i]++;
 		}
 	}
-
+	// For each switch - Check if pressed confidence or released confidence is
+	// above threshold
 	for (int i = 0; i < numberOfButtons; i++)
 	{
 		if (pressedConfidence[i] > confidenceLevels)
@@ -120,6 +127,7 @@ void readSW()
 			pressed[i] = 0;
 		}
 	}
+	// Call long / short press function
 	readSLSW();
 	return;
 }
@@ -129,6 +137,7 @@ void readSLSW()
 	{
 		if (pressed[i])
 		{
+
 			pressedTime[i] ++;
 		}
 		else
