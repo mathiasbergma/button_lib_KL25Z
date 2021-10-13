@@ -6,11 +6,37 @@
  */
 
 /*
- * Library can only handle button input from a single PORT
- *
- * Example using PORTE, confidencelevel is the number of cycles that the button must be pressed
- * initSW(PORTE, PTE, confidencelevel, <number of pins used for buttons>, <pin number1>)
- * initSW(PORTE, PTE, confidencelevel, 4, 20, 21, 22, 23)
+Debounce library for FRDM-KL25Z
+
+The debounce library is designed to be used with a timer interrupt.
+
+The interrupt must call readSW(). This will update the pressed[] array that contains the pressed flags (1 for pressed, 0 for released).
+The library is setup for active low switches with internal pullup enabled.
+
+#### USAGE ####
+initSW(PORT_Type, GPIO_Type, confidenceLevel, numBits, ...)
+
+confidenceLevel is the number of cycles that the button must be pressed or released before the flag changes state.
+numBits is the number of pins to be debounced - numBits is used to access the variadic arguments.
+
+Example usage with buttons on PORTD pins 20, 21 and 22.
+
+initSW(PORTD, PTD, 10, 3, 20, 21, 22)
+
+####
+
+readSW() must be called from a timer interrupt. Preferably at 1 ms intervals.
+
+pressed[] contains the pressed flag for each switch in the order they were initialized
+
+####
+Long and short buttonpress are also registered. These are saved in pressedDur[] in the
+same order as pressed[].
+
+pressedDur[] can have three values. 'noPress', 'shortPress' & 'longPress'. 'shortPress' and
+'longPress' is updated when the switch is released. Next time the switch is pressed, the
+value of pressedDur[] will become 'noPress'.
+The user can set the value of pressedDur[] to 'noPress' once he/she has registered the press.
  */
 
 #ifndef BUTTONPRESS_H_
@@ -25,6 +51,8 @@
 #include "fsl_debug_console.h"
 #include <stdarg.h>
 
+#define LONG_PRESS_TIME 700 //Time in ms
+
 typedef enum
 {
 	noPress,
@@ -33,127 +61,28 @@ typedef enum
 
 } duration_t;
 
-int numberOfButtons;
-int *g_bitNumber;				// Pin number
-int *pressedConfidence;			// Counter for pressed confidence
-int *releasedConfidence;		// Counter for released confidence
-int confidenceLevels;			// Required confidence level
-volatile char *pressed;	// Holds the pressed status of the initialized switches
-volatile duration_t *pressedDur;// Duration flag of the press
-volatile int *pressedTime;		// Press time counter
-GPIO_Type *PTofBits;			// Holds the port information
+// Variable are declared in ButtonPress.c
+extern int numberOfButtons;
+extern int *g_bitNumber;				// Pin number
+extern int *pressedConfidence;			// Counter for pressed confidence
+extern int *releasedConfidence;		// Counter for released confidence
+extern int confidenceLevels;			// Required confidence level
+extern volatile char *pressed;	// Holds the pressed status of the initialized switches
+extern volatile duration_t *pressedDur;// Duration flag of the press
+extern volatile int *pressedTime;		// Press time counter
+extern GPIO_Type *PTofBits;			// Holds the port information
 
 
 #define ENABLE_LCD_PORT_CLOCKS   	SIM->SCGC5 |= SIM_SCGC5_PORTA_MASK | SIM_SCGC5_PORTB_MASK | SIM_SCGC5_PORTC_MASK | SIM_SCGC5_PORTD_MASK | SIM_SCGC5_PORTE_MASK;
 #define GPIO_W_PULLUP 0x103
 
 /* Function prototypes */
+
+// Initialize switches
 int initSW(PORT_Type *PORTX, GPIO_Type *PTX, int confidenceLevel, int numBits, ...);
+// Read switch states and set pressed[] flag if switch is above threshold
 void readSW();
+// Updates pressedDur[] with shortPress or longPress
 void readSLSW();
-void set_Timeout(int Timeout_ms);
-
-/* Initialize swicthes. */
-int initSW(PORT_Type *PORTX, GPIO_Type *PTX, int confidenceLevel, int numBits, ...)
-{
-
-	PTofBits = PTX;
-	// Enable all clocks
-	ENABLE_LCD_PORT_CLOCKS
-
-	// Save number of buttons and required Confidencelevel for later
-	confidenceLevels = confidenceLevel;
-	numberOfButtons = numBits;
-
-	/* Allocate memory for global variables */
-	g_bitNumber = (int*) malloc(numBits * sizeof(int));
-	pressedConfidence = (int*) malloc(numBits * sizeof(int));
-	releasedConfidence = (int*) malloc(numBits * sizeof(int));
-	pressed = (char*) malloc(numBits * sizeof(char));
-	pressedDur = (duration_t*) malloc(numBits * sizeof(duration_t));
-	pressedTime = (int*) malloc(numBits * sizeof(int));
-
-	// Create a new variable to hold the variable number of arguments
-	va_list v1;
-	//Enable access to variadic function arguments
-	va_start(v1, numBits);
-	for (int i = 0; i < numBits; i++)
-	{
-		g_bitNumber[i] = va_arg(v1, int);
-		//Make the pins GPIO through Port Control Register
-		PORTX->PCR[g_bitNumber[i]] &= ~PORT_PCR_MUX_MASK;
-		// Enable pullup resistor
-		PORTX->PCR[g_bitNumber[i]] = GPIO_W_PULLUP;
-		// Set data direction as input
-		PTX->PDDR &= ~(1UL << g_bitNumber[i]);
-	}
-
-	return numBits;
-}
-
-/* The function takes no arguments and returns nothing as it is meant to be run from and interrupt handler*/
-void readSW()
-{
-	unsigned portSwitchState = ~PTofBits->PDIR;	// Read value of port bits into portSwitchState
-
-	// For each switch
-	for (int i = 0; i < numberOfButtons; i++)
-	{
-		// If switch is pressed
-		if ((portSwitchState & (1UL << g_bitNumber[i])))
-		{
-			// Increment the pressed confidence
-			pressedConfidence[i]++;
-			// Switch is pressed - set released confidence to 0
-			releasedConfidence[i] = 0;
-		} else
-		{
-			// Switch is not pressed. Set pressed confidence to 0
-			// and increment released confidence
-			pressedConfidence[i] = 0;
-			releasedConfidence[i]++;
-		}
-	}
-	// For each switch - Check if pressed confidence or released confidence is
-	// above threshold
-	for (int i = 0; i < numberOfButtons; i++)
-	{
-		if (pressedConfidence[i] > confidenceLevels)
-		{
-			pressed[i] = 1;
-			pressedDur[i] = noPress;
-		} else if (releasedConfidence[i] > confidenceLevels)
-		{
-			pressed[i] = 0;
-		}
-	}
-	// Call long / short press function
-	readSLSW();
-	return;
-}
-void readSLSW()
-{
-	for (int i = 0; i < numberOfButtons; i++)
-	{
-		if (pressed[i])
-		{
-
-			pressedTime[i] ++;
-		}
-		else
-		{
-			if (pressedTime[i] < 1000)
-			{
-				pressedDur[i] = shortPress;
-			}
-			else
-			{
-				pressedDur[i] = longPress;
-			}
-			pressedTime[i] = 0;
-		}
-	}
-	return;
-}
 
 #endif /* BUTTONPRESS_H_ */
