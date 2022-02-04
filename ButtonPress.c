@@ -1,5 +1,5 @@
-/*
- * ButtonPress.c
+/**
+ * @file ButtonPress.c
  *
  *  Created on: 13. okt. 2021
  *      Author: Mathias
@@ -7,24 +7,47 @@
 #include "ButtonPress.h"
 
 
-int numberOfButtons;
-int *g_bitNumber;				// Pin number
-int *pressedConfidence;			// Counter for pressed confidence
-int *releasedConfidence;		// Counter for released confidence
-int confidenceLevels;			// Required confidence level
-volatile char *pressed;	// Holds the pressed status of the initialized switches
-volatile duration_t *pressedDur;// Duration flag of the press
-volatile int *pressedTime;		// Press time counter
-GPIO_Type *PTofBits;			// Holds the port information
+int numberOfButtons;			//!< Holds the pins buttons
+int *g_bitNumber;				//!< Pin number
+int *pressedConfidence;			//!< Counter for pressed confidence
+int *releasedConfidence;		//!< Counter for released confidence
+int confidenceLevels;			//!< Required confidence level
+volatile char *pressed;			//!< Holds the pressed status of the initialized switches
+volatile duration_t *pressedDur;//!< Duration flag of the press
+volatile int *pressedTime;		//!< Press time counter
+GPIO_Type *PTofBits;			//!< Holds the port information
 
+/*
+void PIT_IRQHandler()
+{
+	//Determine which channel triggered interrupt
+	if (PIT->CHANNEL[0].TFLG & PIT_TFLG_TIF_MASK)
+	{
+		readSW();
+		//Clear interrupt request flag for channel
+		PIT->CHANNEL[0].TFLG &= PIT_TFLG_TIF_MASK;
+	}
+}
+*/
 
-/* Initialize swicthes. */
+/**
+ * @brief Initialize switches.
+ *
+ * @param *PORTX is the port of the pins to be initialized, i.e. PORTE. Used for initialization of pins.
+ * @param *PTX is the port of the pins to be initialized, i.e. PTE. Used for accessing pins.
+ * @param confidenceLevel is the number of successive interrupts where the pin must be low before a press is registered
+ * @param numBits Is the number of pin to be initialized. Used for the variadic function arguments
+ * @param ... Variadic function arguments. The specific pin numbers of the pins to be initialized
+ *
+ * @return Returns number of initialized switches
+ *
+ *   */
 int initSW(PORT_Type *PORTX, GPIO_Type *PTX, int confidenceLevel, int numBits, ...)
 {
-
+	initPIT();
 	PTofBits = PTX;
-	// Enable all clocks
-	ENABLE_LCD_PORT_CLOCKS
+	// Enable port clock
+	ENABLE_PORT_CLOCKS
 
 	// Save number of buttons and required Confidencelevel for later
 	confidenceLevels = confidenceLevel;
@@ -56,7 +79,9 @@ int initSW(PORT_Type *PORTX, GPIO_Type *PTX, int confidenceLevel, int numBits, .
 	return numBits;
 }
 
-/* The function takes no arguments and returns nothing as it is meant to be run from and interrupt handler*/
+/**
+ * @brief The function takes no arguments and returns nothing as it is meant to be run from and interrupt handler
+ * */
 void readSW()
 {
 	unsigned portSwitchState = ~PTofBits->PDIR;	// Read value of port bits into portSwitchState
@@ -96,6 +121,9 @@ void readSW()
 	readSLSW();
 	return;
 }
+/**
+ * @brief Checks for short or long press. Called from readSW()
+ */
 void readSLSW()
 {
 	for (int i = 0; i < numberOfButtons; i++)
@@ -107,7 +135,7 @@ void readSLSW()
 		}
 		else
 		{
-			if (pressedTime[i] < LONG_PRESS_TIME)
+			if (pressedTime[i] < LONG_PRESS_TIME && pressedTime[i] > LONG_PRESS_TIME/4)
 			{
 				pressedDur[i] = shortPress;
 			}

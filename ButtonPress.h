@@ -50,8 +50,9 @@ The user can set the value of pressedDur[] to 'noPress' once he/she has register
 #include "MKL25Z4.h"
 #include "fsl_debug_console.h"
 #include <stdarg.h>
+#include "PIT_driver.h"
 
-#define LONG_PRESS_TIME 700 //Time in ms
+#define LONG_PRESS_TIME 7000
 
 typedef enum
 {
@@ -73,7 +74,7 @@ extern volatile int *pressedTime;		// Press time counter
 extern GPIO_Type *PTofBits;			// Holds the port information
 
 
-#define ENABLE_LCD_PORT_CLOCKS   	SIM->SCGC5 |= SIM_SCGC5_PORTA_MASK | SIM_SCGC5_PORTB_MASK | SIM_SCGC5_PORTC_MASK | SIM_SCGC5_PORTD_MASK | SIM_SCGC5_PORTE_MASK;
+#define ENABLE_PORT_CLOCKS   	SIM->SCGC5 |= SIM_SCGC5_PORTA_MASK | SIM_SCGC5_PORTB_MASK | SIM_SCGC5_PORTC_MASK | SIM_SCGC5_PORTD_MASK | SIM_SCGC5_PORTE_MASK;
 #define GPIO_W_PULLUP 0x103
 
 /* Function prototypes */
